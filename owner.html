@@ -486,11 +486,41 @@
     }
 
     // Map initialization
-    const map = L.map('map').setView([20.5937, 78.9629], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-    const ownerMarker = L.marker([0, 0]).addTo(map);
+   // Map initialization — center on real GPS if available
+let map;
+let ownerMarker;
+
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      map = L.map('map').setView([lat, lng], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+      ownerMarker = L.marker([lat, lng]).addTo(map);
+      console.log("📍 Initial live location:", lat, lng);
+    },
+    err => {
+      console.warn("⚠️ Geolocation failed:", err.message);
+      // fallback
+      map = L.map('map').setView([20.5937, 78.9629], 5);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+      ownerMarker = L.marker([0, 0]).addTo(map);
+    }
+  );
+} else {
+  // fallback if geolocation unsupported
+  map = L.map('map').setView([20.5937, 78.9629], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+  ownerMarker = L.marker([0, 0]).addTo(map);
+}
+
 
     // Generate code
     document.getElementById('generateBtn').addEventListener('click', async () => {
