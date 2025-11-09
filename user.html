@@ -1,0 +1,537 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Track Delivery - Live Delivery</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f7fafc;
+      min-height: 100vh;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .back-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+    
+    .back-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 24px;
+    }
+    
+    @media (max-width: 1024px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .code-input-section {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    
+    #code {
+      flex: 1;
+      padding: 14px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 24px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 4px;
+      font-family: 'Courier New', monospace;
+      transition: all 0.3s ease;
+    }
+    
+    #code:focus {
+      outline: none;
+      border-color: #f093fb;
+      box-shadow: 0 0 0 3px rgba(240, 147, 251, 0.1);
+    }
+    
+    .btn {
+      padding: 14px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(245, 87, 108, 0.5);
+    }
+    
+    .owner-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      border-radius: 12px;
+      color: white;
+      margin-bottom: 24px;
+      animation: slideIn 0.5s ease;
+    }
+    
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    
+    .owner-photo {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid white;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .owner-photo-placeholder {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      border: 3px solid white;
+    }
+    
+    .owner-details h3 {
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+    
+    .owner-details p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+    
+    .info-grid {
+      display: grid;
+      gap: 16px;
+    }
+    
+    .info-card {
+      background: #f7fafc;
+      padding: 16px;
+      border-radius: 12px;
+      border-left: 4px solid #f093fb;
+    }
+    
+    .info-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #718096;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    
+    .info-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a202c;
+    }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .status-created {
+      background: #bee3f8;
+      color: #2c5282;
+    }
+    
+    .status-started {
+      background: #feebc8;
+      color: #c05621;
+    }
+    
+    .status-delivered {
+      background: #c6f6d5;
+      color: #2f855a;
+    }
+    
+    .status-cancelled {
+      background: #fed7d7;
+      color: #c53030;
+    }
+    
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .map-container {
+      height: 600px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #718096;
+    }
+    
+    .empty-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    
+    .empty-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 8px;
+    }
+    
+    .empty-text {
+      font-size: 14px;
+    }
+    
+    #ownerInfo {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <h1>
+        <span>📍</span>
+        Track Your Delivery
+      </h1>
+      <a href="index.html" class="back-btn">← Back to Home</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2 class="card-title">🔑 Enter Tracking Code</h2>
+          <div class="code-input-section">
+            <input type="text" id="code" maxlength="4" placeholder="0000" />
+            <button class="btn btn-primary" id="join">Track</button>
+          </div>
+          
+          <div class="empty-state" id="emptyState">
+            <div class="empty-icon">📦</div>
+            <div class="empty-title">Ready to Track</div>
+            <div class="empty-text">Enter your 4-digit code to start tracking your delivery</div>
+          </div>
+          
+          <div id="ownerInfo"></div>
+        </div>
+
+        <div class="card" id="statsCard" style="margin-top: 24px; display: none;">
+          <h2 class="card-title">📊 Delivery Stats</h2>
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="info-label">Status</div>
+              <div class="info-value">
+                <span id="statusBadge">-</span>
+              </div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">Distance Remaining</div>
+              <div class="info-value">
+                <span id="distanceText">-</span> <span style="font-size: 14px; color: #718096;">km</span>
+              </div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">Estimated Time</div>
+              <div class="info-value">
+                <span id="etaText">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">🗺️ Live Tracking Map</h2>
+        <div class="map-container">
+          <div id="map"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const socket = io();
+    const map = L.map('map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let ownerMarker = null;
+    let userMarker = null;
+    let poly = null;
+    let currentCode = null;
+
+    function haversineKm(lat1, lon1, lat2, lon2){
+      function toRad(x){ return x * Math.PI / 180; }
+      const R = 6371;
+      const dLat = toRad(lat2-lat1);
+      const dLon = toRad(lon2-lon1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+      return 2*R*Math.asin(Math.sqrt(a));
+    }
+
+    function getStatusClass(status) {
+      const statusMap = {
+        'created': 'status-created',
+        'started delivering': 'status-started',
+        'delivered': 'status-delivered',
+        'cancelled': 'status-cancelled'
+      };
+      return statusMap[status] || 'status-created';
+    }
+
+    async function joinCode(code){
+      currentCode = code;
+      socket.emit('join_code', { code, role: 'user' });
+
+      const r = await fetch('/latest/' + code);
+      const j = await r.json();
+      
+      if (!j.ok) { alert('Error loading data'); return; }
+      if (!j.owner) { alert('No delivery found with that code'); return; }
+
+      // Hide empty state and show owner info
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('statsCard').style.display = 'block';
+
+      // Display owner info with photo
+      const ownerInfoHtml = `
+        <div class="owner-info">
+          ${j.owner.photo 
+            ? `<img src="/owner-photo/${code}" class="owner-photo" alt="Owner" />`
+            : `<div class="owner-photo-placeholder">👤</div>`
+          }
+          <div class="owner-details">
+            <h3>${j.owner.name || 'Delivery Person'}</h3>
+            <p>Tracking Code: ${code}</p>
+          </div>
+        </div>
+      `;
+      document.getElementById('ownerInfo').innerHTML = ownerInfoHtml;
+      document.getElementById('ownerInfo').style.display = 'block';
+
+      // Update status
+      const statusClass = getStatusClass(j.owner.status);
+      document.getElementById('statusBadge').innerHTML = `
+        <span class="status-badge ${statusClass}">
+          <span class="status-indicator"></span>
+          ${j.owner.status}
+        </span>
+      `;
+
+      // Get user location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          const lat = pos.coords.latitude, lng = pos.coords.longitude;
+          if (!userMarker) {
+            userMarker = L.marker([lat, lng]).addTo(map).bindPopup('📍 Your Location');
+          } else {
+            userMarker.setLatLng([lat, lng]);
+          }
+          map.setView([lat, lng], 13);
+          updateDistanceAndETA(lat, lng, j.latest ? j.latest.lat : null, j.latest ? j.latest.lng : null);
+        });
+
+        navigator.geolocation.watchPosition(pos => {
+          const lat = pos.coords.latitude, lng = pos.coords.longitude;
+          if (!userMarker) {
+            userMarker = L.marker([lat, lng]).addTo(map).bindPopup('📍 Your Location');
+          } else userMarker.setLatLng([lat, lng]);
+          
+          if (ownerMarker) {
+            updateDistanceAndETA(lat, lng, ownerMarker.getLatLng().lat, ownerMarker.getLatLng().lng);
+          }
+        });
+      }
+
+      if (j.latest) {
+        showOwner([j.latest.lat, j.latest.lng]);
+      }
+    }
+
+    function showOwner([lat, lng]) {
+      if (!ownerMarker) {
+        ownerMarker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: 'custom-marker',
+            html: '<div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 16px;">🚚</div>'
+          })
+        }).addTo(map).bindPopup('📦 Delivery Person');
+      } else {
+        ownerMarker.setLatLng([lat, lng]);
+      }
+
+      const userLatLng = userMarker ? userMarker.getLatLng() : null;
+      const coords = userLatLng ? [[userLatLng.lat, userLatLng.lng], [lat, lng]] : [[lat, lng]];
+      
+      if (poly) {
+        poly.setLatLngs(coords);
+      } else {
+        poly = L.polyline(coords, {
+          color: '#f093fb',
+          weight: 4,
+          opacity: 0.7,
+          dashArray: '10, 10'
+        }).addTo(map);
+      }
+
+      const group = [];
+      if (userMarker) group.push(userMarker.getLatLng());
+      if (ownerMarker) group.push(ownerMarker.getLatLng());
+      if (group.length) map.fitBounds(group, { padding: [50, 50] });
+    }
+
+    function updateDistanceAndETA(userLat, userLng, ownerLat, ownerLng) {
+      if (!ownerLat || !ownerLng || !userLat || !userLng) return;
+      
+      const km = haversineKm(userLat, userLng, ownerLat, ownerLng);
+      document.getElementById('distanceText').textContent = km.toFixed(2);
+      
+      const speedKmh = 40;
+      const mins = (km / speedKmh) * 60;
+      const eta = mins < 60 ? Math.round(mins) + ' min' : (mins / 60).toFixed(1) + ' hr';
+      document.getElementById('etaText').textContent = eta;
+    }
+
+    document.getElementById('join').addEventListener('click', async () => {
+      const code = document.getElementById('code').value.trim();
+      if (!code) return alert('Please enter a tracking code');
+      if (code.length !== 4) return alert('Code must be 4 digits');
+      await joinCode(code);
+    });
+
+    // Allow Enter key to submit
+    document.getElementById('code').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('join').click();
+      }
+    });
+
+    socket.on('location', data => {
+      if (!currentCode) return;
+      showOwner([data.lat, data.lng]);
+      if (userMarker) {
+        updateDistanceAndETA(userMarker.getLatLng().lat, userMarker.getLatLng().lng, data.lat, data.lng);
+      }
+    });
+
+    socket.on('status', data => {
+      const statusClass = getStatusClass(data.status);
+      document.getElementById('statusBadge').innerHTML = `
+        <span class="status-badge ${statusClass}">
+          <span class="status-indicator"></span>
+          ${data.status}
+        </span>
+      `;
+    });
+  </script>
+</body>
+</html>

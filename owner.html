@@ -1,0 +1,584 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Owner Dashboard - Live Delivery</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f7fafc;
+      min-height: 100vh;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .back-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+    
+    .back-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    
+    @media (max-width: 1024px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 8px;
+    }
+    
+    input[type="text"], select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    }
+    
+    input[type="text"]:focus, select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .upload-zone {
+      border: 2px dashed #cbd5e0;
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+      background: #f7fafc;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .upload-zone:hover {
+      border-color: #667eea;
+      background: #edf2f7;
+    }
+    
+    .upload-zone.drag-over {
+      border-color: #667eea;
+      background: #e6f2ff;
+    }
+    
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    
+    .upload-text {
+      color: #4a5568;
+      font-size: 14px;
+    }
+    
+    .upload-subtext {
+      color: #a0aec0;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    
+    .photo-preview {
+      width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    
+    input[type="file"] {
+      display: none;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+    }
+    
+    .btn-secondary {
+      background: #edf2f7;
+      color: #4a5568;
+    }
+    
+    .btn-secondary:hover {
+      background: #e2e8f0;
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+      color: white;
+    }
+    
+    .btn-danger {
+      background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+      color: white;
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .code-display {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 24px;
+      border-radius: 12px;
+      text-align: center;
+      margin: 20px 0;
+      animation: slideIn 0.5s ease;
+    }
+    
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .code-label {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+    
+    .code-value {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: 8px;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .status-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+    
+    .live-controls {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    
+    .status-badge.stopped {
+      background: #fed7d7;
+      color: #c53030;
+    }
+    
+    .status-badge.running {
+      background: #c6f6d5;
+      color: #2f855a;
+    }
+    
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .map-container {
+      height: 500px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    
+    .log-container {
+      background: #1a202c;
+      border-radius: 12px;
+      padding: 16px;
+      height: 200px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #48bb78;
+    }
+    
+    .log-container::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .log-container::-webkit-scrollbar-track {
+      background: #2d3748;
+      border-radius: 4px;
+    }
+    
+    .log-container::-webkit-scrollbar-thumb {
+      background: #4a5568;
+      border-radius: 4px;
+    }
+    
+    .log-entry {
+      margin-bottom: 4px;
+      line-height: 1.6;
+    }
+    
+    .log-time {
+      color: #a0aec0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <h1>
+        <span>📦</span>
+        Owner Dashboard
+      </h1>
+      <a href="index.html" class="back-btn">← Back to Home</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2 class="card-title">🚀 Setup Delivery</h2>
+          
+          <div class="form-group">
+            <label>Your Name</label>
+            <input type="text" id="name" placeholder="Enter your name" />
+          </div>
+
+          <div class="form-group">
+            <label>Upload Photo</label>
+            <div class="upload-zone" id="drop">
+              <div class="upload-icon">📷</div>
+              <div class="upload-text">Drag & drop your photo here</div>
+              <div class="upload-subtext">or click to browse</div>
+              <input type="file" id="photo" accept="image/*">
+            </div>
+            <img id="preview" class="photo-preview" style="display:none" />
+          </div>
+
+          <button class="btn btn-primary" id="generateBtn">
+            <span>✨</span> Generate 4-Digit Code
+          </button>
+
+          <div id="codeBox"></div>
+        </div>
+
+        <div class="card" style="margin-top: 24px;">
+          <h2 class="card-title">⚙️ Controls</h2>
+          
+          <div class="form-group">
+            <label>Delivery Status</label>
+            <div class="status-row">
+              <select id="status">
+                <option>created</option>
+                <option>started delivering</option>
+                <option>delivered</option>
+                <option>cancelled</option>
+              </select>
+              <button class="btn btn-secondary" id="setStatus" style="width: auto; padding: 12px 24px;">Update</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Live Location Tracking</label>
+            <div class="status-badge stopped" id="liveStatusBadge">
+              <span class="status-indicator"></span>
+              <span id="liveState">Stopped</span>
+            </div>
+            <div class="live-controls">
+              <button class="btn btn-success" id="startLive" disabled style="flex: 1;">
+                <span>▶</span> Start Live
+              </button>
+              <button class="btn btn-danger" id="stopLive" disabled style="flex: 1;">
+                <span>⏸</span> Stop Live
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2 class="card-title">🗺️ Live Map</h2>
+          <div class="map-container">
+            <div id="map"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">📊 Activity Log</h2>
+      <div class="log-container" id="log"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const socket = io();
+    let currentCode = null;
+    let photoData = null;
+    let liveInterval = null;
+    const logEl = document.getElementById('log');
+
+    function log(s){
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="log-time">[${new Date().toLocaleTimeString()}]</span> ${s}`;
+      logEl.insertBefore(entry, logEl.firstChild);
+    }
+
+    // Upload zone functionality
+    const drop = document.getElementById('drop');
+    const photoInput = document.getElementById('photo');
+    const preview = document.getElementById('preview');
+    
+    drop.addEventListener('click', () => photoInput.click());
+    
+    drop.addEventListener('dragover', e => {
+      e.preventDefault();
+      drop.classList.add('drag-over');
+    });
+    
+    drop.addEventListener('dragleave', () => {
+      drop.classList.remove('drag-over');
+    });
+    
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      drop.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) readFile(f);
+    });
+    
+    photoInput.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (f) readFile(f);
+    });
+    
+    function readFile(f){
+      const r = new FileReader();
+      r.onload = () => {
+        photoData = r.result;
+        preview.src = photoData;
+        preview.style.display = 'block';
+        drop.querySelector('.upload-icon').textContent = '✓';
+        drop.querySelector('.upload-text').textContent = 'Photo uploaded successfully';
+        drop.querySelector('.upload-subtext').textContent = 'Click to change';
+      };
+      r.readAsDataURL(f);
+    }
+
+    // Map initialization
+    const map = L.map('map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    const ownerMarker = L.marker([0, 0]).addTo(map);
+
+    // Generate code
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      const name = document.getElementById('name').value || 'owner';
+      const form = new FormData();
+      form.append('name', name);
+      
+      if (photoData) {
+        const res = await fetch(photoData);
+        const blob = await res.blob();
+        form.append('photo', blob, 'photo.png');
+      }
+      
+      const r = await fetch('/generate', { method: 'POST', body: form });
+      const j = await r.json();
+      
+      if (j.ok) {
+        currentCode = j.code;
+        document.getElementById('codeBox').innerHTML = `
+          <div class="code-display">
+            <div class="code-label">Your Tracking Code</div>
+            <div class="code-value">${currentCode}</div>
+          </div>
+        `;
+        document.getElementById('startLive').disabled = false;
+        log('✓ Generated code: ' + currentCode);
+      } else {
+        alert('Error: ' + (j.error || 'unknown'));
+      }
+    });
+
+    // Set status
+    document.getElementById('setStatus').addEventListener('click', async () => {
+      if (!currentCode) return alert('Generate code first');
+      const st = document.getElementById('status').value;
+      await fetch('/status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ code: currentCode, status: st })
+      });
+      log('✓ Status updated: ' + st);
+      socket.emit('join_code', { code: currentCode, role: 'owner' });
+    });
+
+    // Live tracking
+    document.getElementById('startLive').addEventListener('click', async () => {
+      if (!currentCode) return alert('Generate code first');
+      
+      document.getElementById('liveState').textContent = 'Running';
+      document.getElementById('liveStatusBadge').className = 'status-badge running';
+      document.getElementById('startLive').disabled = true;
+      document.getElementById('stopLive').disabled = false;
+      socket.emit('join_code', { code: currentCode, role: 'owner' });
+
+      const sendOnce = async () => {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(async pos => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            await fetch('/location', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ code: currentCode, lat, lng })
+            });
+            ownerMarker.setLatLng([lat, lng]);
+            map.setView([lat, lng], 15);
+            log(`📍 Location sent: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          }, err => {
+            log('⚠ Geolocation error: ' + err.message);
+          });
+        }
+      };
+
+      await sendOnce();
+      liveInterval = setInterval(sendOnce, 5000);
+    });
+
+    document.getElementById('stopLive').addEventListener('click', () => {
+      document.getElementById('liveState').textContent = 'Stopped';
+      document.getElementById('liveStatusBadge').className = 'status-badge stopped';
+      document.getElementById('startLive').disabled = false;
+      document.getElementById('stopLive').disabled = true;
+      if (liveInterval) clearInterval(liveInterval);
+      log('⏸ Stopped live tracking');
+    });
+
+    socket.on('connect', () => log('🔌 Socket connected'));
+    socket.on('status', data => log('📢 Status broadcast: ' + data.status));
+  </script>
+</body>
+</html>

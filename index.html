@@ -1,0 +1,228 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Live Delivery - Home</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 48px 40px;
+      animation: fadeIn 0.5s ease;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    
+    .logo-icon {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+    }
+    
+    .logo-icon svg {
+      width: 45px;
+      height: 45px;
+      fill: white;
+    }
+    
+    h1 {
+      color: #1a202c;
+      font-size: 32px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #718096;
+      font-size: 16px;
+      margin-bottom: 40px;
+    }
+    
+    .role-section {
+      margin-bottom: 24px;
+    }
+    
+    .role-label {
+      color: #4a5568;
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      display: block;
+    }
+    
+    .role-card {
+      display: block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 16px;
+      padding: 24px;
+      color: white;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+      cursor: pointer;
+    }
+    
+    .role-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.5);
+    }
+    
+    .role-card.secondary {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);
+    }
+    
+    .role-card.secondary:hover {
+      box-shadow: 0 8px 24px rgba(245, 87, 108, 0.5);
+    }
+    
+    .role-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .role-icon {
+      width: 32px;
+      height: 32px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .role-description {
+      font-size: 14px;
+      opacity: 0.95;
+      line-height: 1.6;
+    }
+    
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
+      margin: 32px 0;
+    }
+    
+    .info-box {
+      background: #f7fafc;
+      border-left: 4px solid #667eea;
+      padding: 16px;
+      border-radius: 8px;
+      margin-top: 32px;
+    }
+    
+    .info-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 8px;
+    }
+    
+    .info-list {
+      list-style: none;
+      font-size: 13px;
+      color: #4a5568;
+      line-height: 1.8;
+    }
+    
+    .info-list li {
+      padding-left: 20px;
+      position: relative;
+    }
+    
+    .info-list li:before {
+      content: "•";
+      position: absolute;
+      left: 8px;
+      color: #667eea;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 2.18l8 3.6v8.22c0 4.39-2.92 8.49-8 9.82-5.08-1.33-8-5.43-8-9.82V7.78l8-3.6zM11 7v2h2V7h-2zm0 4v6h2v-6h-2z"/>
+        </svg>
+      </div>
+      <h1>Live Delivery</h1>
+      <p class="subtitle">Real-time location tracking made simple</p>
+    </div>
+    
+    <div class="role-section">
+      <span class="role-label">For Delivery Personnel</span>
+      <a href="owner.html" class="role-card">
+        <div class="role-title">
+          <div class="role-icon">📦</div>
+          Owner Dashboard
+        </div>
+        <p class="role-description">Login, generate tracking code, and share your live location with customers</p>
+      </a>
+    </div>
+    
+    <div class="role-section">
+      <span class="role-label">For Customers</span>
+      <a href="user.html" class="role-card secondary">
+        <div class="role-title">
+          <div class="role-icon">📍</div>
+          Track Delivery
+        </div>
+        <p class="role-description">Enter your 4-digit code to track your delivery in real-time</p>
+      </a>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div class="info-box">
+      <div class="info-title">How it works</div>
+      <ul class="info-list">
+        <li>Owner generates a unique 4-digit code</li>
+        <li>Live GPS updates every 5 seconds</li>
+        <li>Real-time tracking via WebSocket</li>
+        <li>Instant status notifications</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>
