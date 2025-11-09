@@ -431,207 +431,255 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/socket.io/socket.io.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-  const socket = io();
-  let currentCode = null;
-  let photoData = null;
-  let watchId = null;
-  const logEl = document.getElementById('log');
+  <script>
+    const socket = io();
+    let currentCode = null;
+    let photoData = null;
+    let liveInterval = null;
+    let watchId = null;  // For watchPosition
+    let latestPosition = null;  // Store latest from watch/getCurrent
+    const logEl = document.getElementById('log');
 
-  function log(s) {
-    const entry = document.createElement('div');
-    entry.className = 'log-entry';
-    entry.innerHTML = `<span class="log-time">[${new Date().toLocaleTimeString()}]</span> ${s}`;
-    logEl.insertBefore(entry, logEl.firstChild);
-    console.log(s);
-  }
-
-  // --- Helper to get IP-based location fallback ---
-  async function getLocationByIP() {
-    try {
-      const res = await fetch('https://ipapi.co/json/');
-      const data = await res.json();
-      if (data.latitude && data.longitude) {
-        return { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), source: 'IP' };
-      }
-    } catch (e) {
-      log('⚠️ IP geolocation failed: ' + e.message);
+    function log(s){
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="log-time">[${new Date().toLocaleTimeString()}]</span> ${s}`;
+      logEl.insertBefore(entry, logEl.firstChild);
+      console.log(s);  // Also log to console for debugging
     }
-    return null;
-  }
 
-  // --- Upload zone setup (unchanged) ---
-  const drop = document.getElementById('drop');
-  const photoInput = document.getElementById('photo');
-  const preview = document.getElementById('preview');
-
-  drop.addEventListener('click', () => photoInput.click());
-  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
-  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
-  drop.addEventListener('drop', e => {
-    e.preventDefault(); drop.classList.remove('drag-over');
-    const f = e.dataTransfer.files[0]; if (f) readFile(f);
-  });
-  photoInput.addEventListener('change', e => {
-    const f = e.target.files[0]; if (f) readFile(f);
-  });
-
-  function readFile(f) {
-    const r = new FileReader();
-    r.onload = () => {
-      photoData = r.result;
-      preview.src = photoData;
-      preview.style.display = 'block';
-      drop.querySelector('.upload-icon').textContent = '✓';
-      drop.querySelector('.upload-text').textContent = 'Photo uploaded successfully';
-      drop.querySelector('.upload-subtext').textContent = 'Click to change';
-    };
-    r.readAsDataURL(f);
-  }
-
-  // --- Map initialization ---
-  let map, ownerMarker;
-  const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
-
-  function initMap(lat, lng) {
-    map = L.map('map').setView([lat, lng], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-    ownerMarker = L.marker([lat, lng]).addTo(map);
-  }
-
-  // Initialize map with current location or fallback
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        initMap(lat, lng);
-        log(`📍 Initial live location (GPS): ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-      },
-      async err => {
-        log('⚠️ GPS failed, trying IP... ' + err.message);
-        const ipLoc = await getLocationByIP();
-        if (ipLoc) {
-          initMap(ipLoc.lat, ipLoc.lng);
-          log(`📍 Initial location (IP): ${ipLoc.lat.toFixed(6)}, ${ipLoc.lng.toFixed(6)}`);
-        } else {
-          initMap(20.5937, 78.9629);
-          log('⚠️ Fallback to India center');
+    // IP fallback function
+    async function getLocationByIP() {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        if (data.latitude && data.longitude) {
+          return { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), source: 'IP' };
         }
-      },
-      geoOptions
-    );
-  }
-
-  // --- Generate tracking code ---
-  document.getElementById('generateBtn').addEventListener('click', async () => {
-    const name = document.getElementById('name').value || 'owner';
-    const form = new FormData();
-    form.append('name', name);
-
-    if (photoData) {
-      const res = await fetch(photoData);
-      const blob = await res.blob();
-      form.append('photo', blob, 'photo.png');
+      } catch (e) {
+        log('⚠ IP geolocation failed: ' + e.message);
+      }
+      return null;
     }
 
-    const r = await fetch('/generate', { method: 'POST', body: form });
-    const j = await r.json();
-
-    if (j.ok) {
-      currentCode = j.code;
-      document.getElementById('codeBox').innerHTML = `
-        <div class="code-display">
-          <div class="code-label">Your Tracking Code</div>
-          <div class="code-value">${currentCode}</div>
-        </div>`;
-      document.getElementById('startLive').disabled = false;
-      log('✓ Generated code: ' + currentCode);
-    } else {
-      alert('Error: ' + (j.error || 'unknown'));
-    }
-  });
-
-  // --- Update status ---
-  document.getElementById('setStatus').addEventListener('click', async () => {
-    if (!currentCode) return alert('Generate code first');
-    const st = document.getElementById('status').value;
-    await fetch('/status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: currentCode, status: st })
+    // Upload zone functionality (unchanged)
+    const drop = document.getElementById('drop');
+    const photoInput = document.getElementById('photo');
+    const preview = document.getElementById('preview');
+    
+    drop.addEventListener('click', () => photoInput.click());
+    
+    drop.addEventListener('dragover', e => {
+      e.preventDefault();
+      drop.classList.add('drag-over');
     });
-    log('✓ Status updated: ' + st);
-    socket.emit('join_code', { code: currentCode, role: 'owner' });
-  });
+    
+    drop.addEventListener('dragleave', () => {
+      drop.classList.remove('drag-over');
+    });
+    
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      drop.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) readFile(f);
+    });
+    
+    photoInput.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (f) readFile(f);
+    });
+    
+    function readFile(f){
+      const r = new FileReader();
+      r.onload = () => {
+        photoData = r.result;
+        preview.src = photoData;
+        preview.style.display = 'block';
+        drop.querySelector('.upload-icon').textContent = '✓';
+        drop.querySelector('.upload-text').textContent = 'Photo uploaded successfully';
+        drop.querySelector('.upload-subtext').textContent = 'Click to change';
+      };
+      r.readAsDataURL(f);
+    }
 
-  // --- Start continuous live tracking ---
-  document.getElementById('startLive').addEventListener('click', async () => {
-    if (!currentCode) return alert('Generate code first');
-
-    document.getElementById('liveState').textContent = 'Running';
-    document.getElementById('liveStatusBadge').className = 'status-badge running';
-    document.getElementById('startLive').disabled = true;
-    document.getElementById('stopLive').disabled = false;
-
-    socket.emit('join_code', { code: currentCode, role: 'owner' });
+    // Map initialization with high-accuracy options (unchanged)
+    let map;
+    let ownerMarker;
+    const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
 
     if (navigator.geolocation) {
-      watchId = navigator.geolocation.watchPosition(
-        async pos => {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
-
-          await fetch('/location', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: currentCode, lat, lng })
-          });
-
-          if (ownerMarker) ownerMarker.setLatLng([lat, lng]);
-          map.setView([lat, lng]);
-          log(`📍 Live update (GPS): ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          latestPosition = { lat, lng };  // Init latest
+          map = L.map('map').setView([lat, lng], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+          }).addTo(map);
+          ownerMarker = L.marker([lat, lng]).addTo(map);
+          log("📍 Initial live location (GPS): " + lat.toFixed(6) + ", " + lng.toFixed(6));
         },
         async err => {
-          log('⚠️ GPS error: ' + err.message);
+          console.warn("⚠️ Geolocation failed:", err.message);
+          log('⚠️ GPS failed, trying IP...');
           const ipLoc = await getLocationByIP();
           if (ipLoc) {
-            await fetch('/location', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: currentCode, lat: ipLoc.lat, lng: ipLoc.lng })
-            });
-            ownerMarker.setLatLng([ipLoc.lat, ipLoc.lng]);
-            log(`📍 Location fallback (IP): ${ipLoc.lat.toFixed(6)}, ${ipLoc.lng.toFixed(6)}`);
+            latestPosition = { lat: ipLoc.lat, lng: ipLoc.lng };
+            map = L.map('map').setView([ipLoc.lat, ipLoc.lng], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            ownerMarker = L.marker([ipLoc.lat, ipLoc.lng]).addTo(map);
+            log("📍 Initial location (IP): " + ipLoc.lat.toFixed(6) + ", " + ipLoc.lng.toFixed(6));
+          } else {
+            // Final fallback
+            map = L.map('map').setView([20.5937, 78.9629], 5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            ownerMarker = L.marker([0, 0]).addTo(map);
+            log('⚠️ Fallback to India center');
           }
         },
         geoOptions
       );
     } else {
-      log('⚠️ Geolocation not supported');
+      // Fallback if no geolocation support
+      map = L.map('map').setView([20.5937, 78.9629], 5);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+      ownerMarker = L.marker([0, 0]).addTo(map);
+      log('⚠️ No geolocation support, using India center');
     }
-  });
 
-  // --- Stop live tracking ---
-  document.getElementById('stopLive').addEventListener('click', () => {
-    document.getElementById('liveState').textContent = 'Stopped';
-    document.getElementById('liveStatusBadge').className = 'status-badge stopped';
-    document.getElementById('startLive').disabled = false;
-    document.getElementById('stopLive').disabled = true;
+    // Generate code (unchanged)
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      const name = document.getElementById('name').value || 'owner';
+      const form = new FormData();
+      form.append('name', name);
+      
+      if (photoData) {
+        const res = await fetch(photoData);
+        const blob = await res.blob();
+        form.append('photo', blob, 'photo.png');
+      }
+      
+      const r = await fetch('/generate', { method: 'POST', body: form });
+      const j = await r.json();
+      
+      if (j.ok) {
+        currentCode = j.code;
+        document.getElementById('codeBox').innerHTML = `
+          <div class="code-display">
+            <div class="code-label">Your Tracking Code</div>
+            <div class="code-value">${currentCode}</div>
+          </div>
+        `;
+        document.getElementById('startLive').disabled = false;
+        log('✓ Generated code: ' + currentCode);
+      } else {
+        alert('Error: ' + (j.error || 'unknown'));
+      }
+    });
 
-    if (watchId) {
-      navigator.geolocation.clearWatch(watchId);
-      watchId = null;
-    }
-    log('⏸ Stopped live tracking');
-  });
+    // Set status (unchanged)
+    document.getElementById('setStatus').addEventListener('click', async () => {
+      if (!currentCode) return alert('Generate code first');
+      const st = document.getElementById('status').value;
+      await fetch('/status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ code: currentCode, status: st })
+      });
+      log('✓ Status updated: ' + st);
+      socket.emit('join_code', { code: currentCode, role: 'owner' });
+    });
 
-  socket.on('connect', () => log('🔌 Socket connected'));
-  socket.on('status', data => log('📢 Status broadcast: ' + data.status));
-</script>
+    // Live tracking: Use watchPosition for continuous updates + interval send
+    document.getElementById('startLive').addEventListener('click', async () => {
+      if (!currentCode) return alert('Generate code first');
+      
+      document.getElementById('liveState').textContent = 'Running';
+      document.getElementById('liveStatusBadge').className = 'status-badge running';
+      document.getElementById('startLive').disabled = true;
+      document.getElementById('stopLive').disabled = false;
+      socket.emit('join_code', { code: currentCode, role: 'owner' });
 
+      // Start watchPosition for live updates
+      if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(
+          pos => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            latestPosition = { lat, lng };
+            if (ownerMarker) {
+              ownerMarker.setLatLng([lat, lng]);
+              map.setView([lat, lng], 15);
+            }
+            log(`📍 Position updated (watch): ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          },
+          err => {
+            console.error('Watch error:', err);
+            log(`⚠ Watch error: ${err.message} - Falling back to poll`);
+            // Continue with interval using getCurrentPosition
+          },
+          geoOptions
+        );
+        log('👀 Started watching for location changes');
+      } else {
+        log('⚠ No geolocation; using IP fallback in polls');
+      }
+
+      const sendOnce = async () => {
+        if (!latestPosition) {
+          // If no position yet, fetch initial
+          const ipLoc = await getLocationByIP();
+          if (ipLoc) {
+            latestPosition = { lat: ipLoc.lat, lng: ipLoc.lng };
+          } else {
+            log('❌ No location available');
+            return;
+          }
+        }
+
+        const { lat, lng } = latestPosition;
+        let source = watchId ? 'watch/GPS' : 'poll/IP';
+
+        await fetch('/location', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ code: currentCode, lat, lng })
+        });
+        if (ownerMarker) {
+          ownerMarker.setLatLng([lat, lng]);
+          map.setView([lat, lng], 15);
+        }
+        log(`📍 Location sent (${source}): ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      };
+
+      await sendOnce();  // Initial send
+      liveInterval = setInterval(sendOnce, 5000);  // Send every 5s using latest
+    });
+
+    document.getElementById('stopLive').addEventListener('click', () => {
+      document.getElementById('liveState').textContent = 'Stopped';
+      document.getElementById('liveStatusBadge').className = 'status-badge stopped';
+      document.getElementById('startLive').disabled = false;
+      document.getElementById('stopLive').disabled = true;
+      if (liveInterval) clearInterval(liveInterval);
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        log('⏹ Stopped watching location');
+      }
+      log('⏸ Stopped live tracking');
+    });
+
+    socket.on('connect', () => log('🔌 Socket connected'));
+    socket.on('status', data => log('📢 Status broadcast: ' + data.status));
+  </script>
 </body>
 </html>
