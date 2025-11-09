@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
+    /* (styles unchanged) */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
@@ -368,6 +369,22 @@
     let userMarker = null;
     let poly = null;
     let currentCode = null;
+    let watchId = null;  // To clear watch if needed
+
+    // IP fallback function (same as owner)
+    async function getLocationByIP() {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        if (data.latitude && data.longitude) {
+          console.log('Using IP location:', data.latitude, data.longitude);
+          return { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), source: 'IP' };
+        }
+      } catch (e) {
+        console.error('IP geolocation failed:', e);
+      }
+      return null;
+    }
 
     function haversineKm(lat1, lon1, lat2, lon2){
       function toRad(x){ return x * Math.PI / 180; }
@@ -386,6 +403,20 @@
         'cancelled': 'status-cancelled'
       };
       return statusMap[status] || 'status-created';
+    }
+
+    // Set user location (with source logging)
+    function setUserLocation(lat, lng, source = 'GPS') {
+      console.log(`📍 User location set (${source}): ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      if (!userMarker) {
+        userMarker = L.marker([lat, lng]).addTo(map).bindPopup('📍 Your Location');
+      } else {
+        userMarker.setLatLng([lat, lng]);
+      }
+      map.setView([lat, lng], 13);
+      if (ownerMarker) {
+        updateDistanceAndETA(lat, lng, ownerMarker.getLatLng().lat, ownerMarker.getLatLng().lng);
+      }
     }
 
     async function joinCode(code){
@@ -427,29 +458,49 @@
         </span>
       `;
 
-      // Get user location
+      // Get initial user location with high-accuracy and error handling
+      const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-          const lat = pos.coords.latitude, lng = pos.coords.longitude;
-          if (!userMarker) {
-            userMarker = L.marker([lat, lng]).addTo(map).bindPopup('📍 Your Location');
-          } else {
-            userMarker.setLatLng([lat, lng]);
-          }
-          map.setView([lat, lng], 13);
-          updateDistanceAndETA(lat, lng, j.latest ? j.latest.lat : null, j.latest ? j.latest.lng : null);
-        });
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            const lat = pos.coords.latitude, lng = pos.coords.longitude;
+            setUserLocation(lat, lng, 'GPS');
+          },
+          async err => {
+            console.error('Initial geolocation error:', err);
+            alert(`Location access failed: ${err.message}. Trying IP fallback...`);
+            const ipLoc = await getLocationByIP();
+            if (ipLoc) {
+              setUserLocation(ipLoc.lat, ipLoc.lng, 'IP');
+            } else {
+              console.warn('No user location available; map will center on owner.');
+            }
+          },
+          geoOptions
+        );
 
-        navigator.geolocation.watchPosition(pos => {
-          const lat = pos.coords.latitude, lng = pos.coords.longitude;
-          if (!userMarker) {
-            userMarker = L.marker([lat, lng]).addTo(map).bindPopup('📍 Your Location');
-          } else userMarker.setLatLng([lat, lng]);
-          
-          if (ownerMarker) {
-            updateDistanceAndETA(lat, lng, ownerMarker.getLatLng().lat, ownerMarker.getLatLng().lng);
-          }
-        });
+        // Watch for user location updates
+        watchId = navigator.geolocation.watchPosition(
+          pos => {
+            const lat = pos.coords.latitude, lng = pos.coords.longitude;
+            setUserLocation(lat, lng, 'GPS (watch)');
+            if (ownerMarker) {
+              updateDistanceAndETA(lat, lng, ownerMarker.getLatLng().lat, ownerMarker.getLatLng().lng);
+            }
+          },
+          err => {
+            console.error('Watch position error:', err);
+            // Don't alert on watch errors (common if moving indoors); fallback not needed as it's continuous
+          },
+          geoOptions
+        );
+      } else {
+        // No geolocation support
+        console.warn('Geolocation not supported');
+        const ipLoc = await getLocationByIP();
+        if (ipLoc) {
+          setUserLocation(ipLoc.lat, ipLoc.lng, 'IP');
+        }
       }
 
       if (j.latest) {
@@ -531,6 +582,11 @@
           ${data.status}
         </span>
       `;
+    });
+
+    // Cleanup on disconnect (optional)
+    socket.on('disconnect', () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
     });
   </script>
 </body>

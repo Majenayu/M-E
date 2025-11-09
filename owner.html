@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
+    /* (styles unchanged) */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
@@ -442,9 +443,24 @@
       entry.className = 'log-entry';
       entry.innerHTML = `<span class="log-time">[${new Date().toLocaleTimeString()}]</span> ${s}`;
       logEl.insertBefore(entry, logEl.firstChild);
+      console.log(s);  // Also log to console for debugging
     }
 
-    // Upload zone functionality
+    // IP fallback function
+    async function getLocationByIP() {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        if (data.latitude && data.longitude) {
+          return { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), source: 'IP' };
+        }
+      } catch (e) {
+        log('⚠ IP geolocation failed: ' + e.message);
+      }
+      return null;
+    }
+
+    // Upload zone functionality (unchanged)
     const drop = document.getElementById('drop');
     const photoInput = document.getElementById('photo');
     const preview = document.getElementById('preview');
@@ -485,44 +501,57 @@
       r.readAsDataURL(f);
     }
 
-    // Map initialization
-   // Map initialization — center on real GPS if available
-let map;
-let ownerMarker;
+    // Map initialization with high-accuracy options
+    let map;
+    let ownerMarker;
+    const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
 
-if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      map = L.map('map').setView([lat, lng], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(map);
-      ownerMarker = L.marker([lat, lng]).addTo(map);
-      console.log("📍 Initial live location:", lat, lng);
-    },
-    err => {
-      console.warn("⚠️ Geolocation failed:", err.message);
-      // fallback
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          map = L.map('map').setView([lat, lng], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+          }).addTo(map);
+          ownerMarker = L.marker([lat, lng]).addTo(map);
+          log("📍 Initial live location (GPS): " + lat.toFixed(6) + ", " + lng.toFixed(6));
+        },
+        async err => {
+          console.warn("⚠️ Geolocation failed:", err.message);
+          log('⚠️ GPS failed, trying IP...');
+          const ipLoc = await getLocationByIP();
+          if (ipLoc) {
+            map = L.map('map').setView([ipLoc.lat, ipLoc.lng], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            ownerMarker = L.marker([ipLoc.lat, ipLoc.lng]).addTo(map);
+            log("📍 Initial location (IP): " + ipLoc.lat.toFixed(6) + ", " + ipLoc.lng.toFixed(6));
+          } else {
+            // Final fallback
+            map = L.map('map').setView([20.5937, 78.9629], 5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            ownerMarker = L.marker([0, 0]).addTo(map);
+            log('⚠️ Fallback to India center');
+          }
+        },
+        geoOptions
+      );
+    } else {
+      // Fallback if no geolocation support
       map = L.map('map').setView([20.5937, 78.9629], 5);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map);
       ownerMarker = L.marker([0, 0]).addTo(map);
+      log('⚠️ No geolocation support, using India center');
     }
-  );
-} else {
-  // fallback if geolocation unsupported
-  map = L.map('map').setView([20.5937, 78.9629], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(map);
-  ownerMarker = L.marker([0, 0]).addTo(map);
-}
 
-
-    // Generate code
+    // Generate code (unchanged)
     document.getElementById('generateBtn').addEventListener('click', async () => {
       const name = document.getElementById('name').value || 'owner';
       const form = new FormData();
@@ -552,7 +581,7 @@ if (navigator.geolocation) {
       }
     });
 
-    // Set status
+    // Set status (unchanged)
     document.getElementById('setStatus').addEventListener('click', async () => {
       if (!currentCode) return alert('Generate code first');
       const st = document.getElementById('status').value;
@@ -565,7 +594,7 @@ if (navigator.geolocation) {
       socket.emit('join_code', { code: currentCode, role: 'owner' });
     });
 
-    // Live tracking
+    // Live tracking with high-accuracy and IP fallback
     document.getElementById('startLive').addEventListener('click', async () => {
       if (!currentCode) return alert('Generate code first');
       
@@ -576,22 +605,48 @@ if (navigator.geolocation) {
       socket.emit('join_code', { code: currentCode, role: 'owner' });
 
       const sendOnce = async () => {
+        let lat, lng, source = 'unknown';
         if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(async pos => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            await fetch('/location', {
-              method: 'POST',
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({ code: currentCode, lat, lng })
+          try {
+            const pos = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, geoOptions);
             });
-            ownerMarker.setLatLng([lat, lng]);
-            map.setView([lat, lng], 15);
-            log(`📍 Location sent: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-          }, err => {
+            lat = pos.coords.latitude;
+            lng = pos.coords.longitude;
+            source = 'GPS';
+          } catch (err) {
             log('⚠ Geolocation error: ' + err.message);
-          });
+            const ipLoc = await getLocationByIP();
+            if (ipLoc) {
+              lat = ipLoc.lat;
+              lng = ipLoc.lng;
+              source = 'IP';
+            } else {
+              log('❌ No location available');
+              return;  // Skip send if no location
+            }
+          }
+        } else {
+          const ipLoc = await getLocationByIP();
+          if (!ipLoc) {
+            log('❌ No geolocation or IP available');
+            return;
+          }
+          lat = ipLoc.lat;
+          lng = ipLoc.lng;
+          source = 'IP';
         }
+
+        await fetch('/location', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ code: currentCode, lat, lng })
+        });
+        if (ownerMarker) {
+          ownerMarker.setLatLng([lat, lng]);
+          map.setView([lat, lng], 15);
+        }
+        log(`📍 Location sent (${source}): ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       };
 
       await sendOnce();
