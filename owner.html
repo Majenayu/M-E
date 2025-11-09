@@ -431,239 +431,207 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    const socket = io();
-    let currentCode = null;
-    let photoData = null;
-    let liveInterval = null;
-    const logEl = document.getElementById('log');
+  <script src="/socket.io/socket.io.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const socket = io();
+  let currentCode = null;
+  let photoData = null;
+  let watchId = null;
+  const logEl = document.getElementById('log');
 
-    function log(s){
-      const entry = document.createElement('div');
-      entry.className = 'log-entry';
-      entry.innerHTML = `<span class="log-time">[${new Date().toLocaleTimeString()}]</span> ${s}`;
-      logEl.insertBefore(entry, logEl.firstChild);
-      console.log(s);  // Also log to console for debugging
-    }
+  function log(s) {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="log-time">[${new Date().toLocaleTimeString()}]</span> ${s}`;
+    logEl.insertBefore(entry, logEl.firstChild);
+    console.log(s);
+  }
 
-    // IP fallback function
-    async function getLocationByIP() {
-      try {
-        const res = await fetch('https://ipapi.co/json/');
-        const data = await res.json();
-        if (data.latitude && data.longitude) {
-          return { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), source: 'IP' };
-        }
-      } catch (e) {
-        log('⚠ IP geolocation failed: ' + e.message);
+  // --- Helper to get IP-based location fallback ---
+  async function getLocationByIP() {
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      const data = await res.json();
+      if (data.latitude && data.longitude) {
+        return { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), source: 'IP' };
       }
-      return null;
+    } catch (e) {
+      log('⚠️ IP geolocation failed: ' + e.message);
+    }
+    return null;
+  }
+
+  // --- Upload zone setup (unchanged) ---
+  const drop = document.getElementById('drop');
+  const photoInput = document.getElementById('photo');
+  const preview = document.getElementById('preview');
+
+  drop.addEventListener('click', () => photoInput.click());
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0]; if (f) readFile(f);
+  });
+  photoInput.addEventListener('change', e => {
+    const f = e.target.files[0]; if (f) readFile(f);
+  });
+
+  function readFile(f) {
+    const r = new FileReader();
+    r.onload = () => {
+      photoData = r.result;
+      preview.src = photoData;
+      preview.style.display = 'block';
+      drop.querySelector('.upload-icon').textContent = '✓';
+      drop.querySelector('.upload-text').textContent = 'Photo uploaded successfully';
+      drop.querySelector('.upload-subtext').textContent = 'Click to change';
+    };
+    r.readAsDataURL(f);
+  }
+
+  // --- Map initialization ---
+  let map, ownerMarker;
+  const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+
+  function initMap(lat, lng) {
+    map = L.map('map').setView([lat, lng], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    ownerMarker = L.marker([lat, lng]).addTo(map);
+  }
+
+  // Initialize map with current location or fallback
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        initMap(lat, lng);
+        log(`📍 Initial live location (GPS): ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      },
+      async err => {
+        log('⚠️ GPS failed, trying IP... ' + err.message);
+        const ipLoc = await getLocationByIP();
+        if (ipLoc) {
+          initMap(ipLoc.lat, ipLoc.lng);
+          log(`📍 Initial location (IP): ${ipLoc.lat.toFixed(6)}, ${ipLoc.lng.toFixed(6)}`);
+        } else {
+          initMap(20.5937, 78.9629);
+          log('⚠️ Fallback to India center');
+        }
+      },
+      geoOptions
+    );
+  }
+
+  // --- Generate tracking code ---
+  document.getElementById('generateBtn').addEventListener('click', async () => {
+    const name = document.getElementById('name').value || 'owner';
+    const form = new FormData();
+    form.append('name', name);
+
+    if (photoData) {
+      const res = await fetch(photoData);
+      const blob = await res.blob();
+      form.append('photo', blob, 'photo.png');
     }
 
-    // Upload zone functionality (unchanged)
-    const drop = document.getElementById('drop');
-    const photoInput = document.getElementById('photo');
-    const preview = document.getElementById('preview');
-    
-    drop.addEventListener('click', () => photoInput.click());
-    
-    drop.addEventListener('dragover', e => {
-      e.preventDefault();
-      drop.classList.add('drag-over');
-    });
-    
-    drop.addEventListener('dragleave', () => {
-      drop.classList.remove('drag-over');
-    });
-    
-    drop.addEventListener('drop', e => {
-      e.preventDefault();
-      drop.classList.remove('drag-over');
-      const f = e.dataTransfer.files[0];
-      if (f) readFile(f);
-    });
-    
-    photoInput.addEventListener('change', e => {
-      const f = e.target.files[0];
-      if (f) readFile(f);
-    });
-    
-    function readFile(f){
-      const r = new FileReader();
-      r.onload = () => {
-        photoData = r.result;
-        preview.src = photoData;
-        preview.style.display = 'block';
-        drop.querySelector('.upload-icon').textContent = '✓';
-        drop.querySelector('.upload-text').textContent = 'Photo uploaded successfully';
-        drop.querySelector('.upload-subtext').textContent = 'Click to change';
-      };
-      r.readAsDataURL(f);
-    }
+    const r = await fetch('/generate', { method: 'POST', body: form });
+    const j = await r.json();
 
-    // Map initialization with high-accuracy options
-    let map;
-    let ownerMarker;
-    const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+    if (j.ok) {
+      currentCode = j.code;
+      document.getElementById('codeBox').innerHTML = `
+        <div class="code-display">
+          <div class="code-label">Your Tracking Code</div>
+          <div class="code-value">${currentCode}</div>
+        </div>`;
+      document.getElementById('startLive').disabled = false;
+      log('✓ Generated code: ' + currentCode);
+    } else {
+      alert('Error: ' + (j.error || 'unknown'));
+    }
+  });
+
+  // --- Update status ---
+  document.getElementById('setStatus').addEventListener('click', async () => {
+    if (!currentCode) return alert('Generate code first');
+    const st = document.getElementById('status').value;
+    await fetch('/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: currentCode, status: st })
+    });
+    log('✓ Status updated: ' + st);
+    socket.emit('join_code', { code: currentCode, role: 'owner' });
+  });
+
+  // --- Start continuous live tracking ---
+  document.getElementById('startLive').addEventListener('click', async () => {
+    if (!currentCode) return alert('Generate code first');
+
+    document.getElementById('liveState').textContent = 'Running';
+    document.getElementById('liveStatusBadge').className = 'status-badge running';
+    document.getElementById('startLive').disabled = true;
+    document.getElementById('stopLive').disabled = false;
+
+    socket.emit('join_code', { code: currentCode, role: 'owner' });
 
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        pos => {
+      watchId = navigator.geolocation.watchPosition(
+        async pos => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
-          map = L.map('map').setView([lat, lng], 15);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-          }).addTo(map);
-          ownerMarker = L.marker([lat, lng]).addTo(map);
-          log("📍 Initial live location (GPS): " + lat.toFixed(6) + ", " + lng.toFixed(6));
+
+          await fetch('/location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: currentCode, lat, lng })
+          });
+
+          if (ownerMarker) ownerMarker.setLatLng([lat, lng]);
+          map.setView([lat, lng]);
+          log(`📍 Live update (GPS): ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
         },
         async err => {
-          console.warn("⚠️ Geolocation failed:", err.message);
-          log('⚠️ GPS failed, trying IP...');
+          log('⚠️ GPS error: ' + err.message);
           const ipLoc = await getLocationByIP();
           if (ipLoc) {
-            map = L.map('map').setView([ipLoc.lat, ipLoc.lng], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
-            ownerMarker = L.marker([ipLoc.lat, ipLoc.lng]).addTo(map);
-            log("📍 Initial location (IP): " + ipLoc.lat.toFixed(6) + ", " + ipLoc.lng.toFixed(6));
-          } else {
-            // Final fallback
-            map = L.map('map').setView([20.5937, 78.9629], 5);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
-            ownerMarker = L.marker([0, 0]).addTo(map);
-            log('⚠️ Fallback to India center');
+            await fetch('/location', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: currentCode, lat: ipLoc.lat, lng: ipLoc.lng })
+            });
+            ownerMarker.setLatLng([ipLoc.lat, ipLoc.lng]);
+            log(`📍 Location fallback (IP): ${ipLoc.lat.toFixed(6)}, ${ipLoc.lng.toFixed(6)}`);
           }
         },
         geoOptions
       );
     } else {
-      // Fallback if no geolocation support
-      map = L.map('map').setView([20.5937, 78.9629], 5);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(map);
-      ownerMarker = L.marker([0, 0]).addTo(map);
-      log('⚠️ No geolocation support, using India center');
+      log('⚠️ Geolocation not supported');
     }
+  });
 
-    // Generate code (unchanged)
-    document.getElementById('generateBtn').addEventListener('click', async () => {
-      const name = document.getElementById('name').value || 'owner';
-      const form = new FormData();
-      form.append('name', name);
-      
-      if (photoData) {
-        const res = await fetch(photoData);
-        const blob = await res.blob();
-        form.append('photo', blob, 'photo.png');
-      }
-      
-      const r = await fetch('/generate', { method: 'POST', body: form });
-      const j = await r.json();
-      
-      if (j.ok) {
-        currentCode = j.code;
-        document.getElementById('codeBox').innerHTML = `
-          <div class="code-display">
-            <div class="code-label">Your Tracking Code</div>
-            <div class="code-value">${currentCode}</div>
-          </div>
-        `;
-        document.getElementById('startLive').disabled = false;
-        log('✓ Generated code: ' + currentCode);
-      } else {
-        alert('Error: ' + (j.error || 'unknown'));
-      }
-    });
+  // --- Stop live tracking ---
+  document.getElementById('stopLive').addEventListener('click', () => {
+    document.getElementById('liveState').textContent = 'Stopped';
+    document.getElementById('liveStatusBadge').className = 'status-badge stopped';
+    document.getElementById('startLive').disabled = false;
+    document.getElementById('stopLive').disabled = true;
 
-    // Set status (unchanged)
-    document.getElementById('setStatus').addEventListener('click', async () => {
-      if (!currentCode) return alert('Generate code first');
-      const st = document.getElementById('status').value;
-      await fetch('/status', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ code: currentCode, status: st })
-      });
-      log('✓ Status updated: ' + st);
-      socket.emit('join_code', { code: currentCode, role: 'owner' });
-    });
+    if (watchId) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+    log('⏸ Stopped live tracking');
+  });
 
-    // Live tracking with high-accuracy and IP fallback
-    document.getElementById('startLive').addEventListener('click', async () => {
-      if (!currentCode) return alert('Generate code first');
-      
-      document.getElementById('liveState').textContent = 'Running';
-      document.getElementById('liveStatusBadge').className = 'status-badge running';
-      document.getElementById('startLive').disabled = true;
-      document.getElementById('stopLive').disabled = false;
-      socket.emit('join_code', { code: currentCode, role: 'owner' });
+  socket.on('connect', () => log('🔌 Socket connected'));
+  socket.on('status', data => log('📢 Status broadcast: ' + data.status));
+</script>
 
-      const sendOnce = async () => {
-        let lat, lng, source = 'unknown';
-        if (navigator.geolocation) {
-          try {
-            const pos = await new Promise((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, geoOptions);
-            });
-            lat = pos.coords.latitude;
-            lng = pos.coords.longitude;
-            source = 'GPS';
-          } catch (err) {
-            log('⚠ Geolocation error: ' + err.message);
-            const ipLoc = await getLocationByIP();
-            if (ipLoc) {
-              lat = ipLoc.lat;
-              lng = ipLoc.lng;
-              source = 'IP';
-            } else {
-              log('❌ No location available');
-              return;  // Skip send if no location
-            }
-          }
-        } else {
-          const ipLoc = await getLocationByIP();
-          if (!ipLoc) {
-            log('❌ No geolocation or IP available');
-            return;
-          }
-          lat = ipLoc.lat;
-          lng = ipLoc.lng;
-          source = 'IP';
-        }
-
-        await fetch('/location', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ code: currentCode, lat, lng })
-        });
-        if (ownerMarker) {
-          ownerMarker.setLatLng([lat, lng]);
-          map.setView([lat, lng], 15);
-        }
-        log(`📍 Location sent (${source}): ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-      };
-
-      await sendOnce();
-      liveInterval = setInterval(sendOnce, 5000);
-    });
-
-    document.getElementById('stopLive').addEventListener('click', () => {
-      document.getElementById('liveState').textContent = 'Stopped';
-      document.getElementById('liveStatusBadge').className = 'status-badge stopped';
-      document.getElementById('startLive').disabled = false;
-      document.getElementById('stopLive').disabled = true;
-      if (liveInterval) clearInterval(liveInterval);
-      log('⏸ Stopped live tracking');
-    });
-
-    socket.on('connect', () => log('🔌 Socket connected'));
-    socket.on('status', data => log('📢 Status broadcast: ' + data.status));
-  </script>
 </body>
 </html>
