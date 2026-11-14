@@ -1,0 +1,18 @@
+name: Documentation checks
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check local README links
+        run: python scripts/check-doc-links.py
+      - name: Check required project docs
+        run: test -f README.md && test -f CONTRIBUTING.md && test -f SECURITY.md && test -f CHANGELOG.md && test -f docs/API.md
